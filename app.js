@@ -1504,7 +1504,7 @@ function camFor(c) {
 // then a sideways shift that centres the points in that area.
 const probe = new THREE.PerspectiveCamera();
 function frameAll(pts, dir, ctr, {panel = false, fill = 0.95} = {}) {
-  const wide = innerWidth >= 900 && !touring;
+  const wide = innerWidth >= 900 && !touring && !$('#app').classList.contains('ui-off');
   const free = {x0: wide ? 800 / innerWidth - 1 : -0.94, x1: wide && panel ? 1 - 800 / innerWidth : 0.93, y0: touring ? -0.48 : -0.8, y1: 0.62};
   probe.fov = camera.fov; probe.aspect = camera.aspect; probe.near = camera.near; probe.far = camera.far;
   const v = camera.view;
@@ -1853,7 +1853,7 @@ $('#next').onclick = () => { stopTour(); go(CH.indexOf(current) + 1); };
 $('#tour').onclick = () => touring ? stopTour() : startTour();
 $('#lbltog').onclick = () => { labelsOn = !labelsOn; $('#lbltog').classList.toggle('on', labelsOn); applyLabels(); };
 $('#tilt').onclick = () => { tiltH.enabled = tiltV.enabled = !tiltH.enabled; $('#tilt').classList.toggle('on', tiltH.enabled); hint(tiltH.enabled ? 'Miniature on: tilt-shift blur' : 'Miniature off'); };
-$('#uitog').onclick = () => { $('#app').classList.toggle('ui-off'); $('#uitog').classList.toggle('on'); };
+$('#uitog').onclick = () => { $('#app').classList.toggle('ui-off'); $('#uitog').classList.toggle('on'); flyTo(...camFor(current), 1.1); };
 $('#help').onclick = () => $('#info').showModal();
 $('#info-x').onclick = () => $('#info').close();
 $('#info').addEventListener('click', e => { if (e.target === $('#info')) $('#info').close(); });

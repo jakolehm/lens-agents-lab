@@ -38,6 +38,7 @@ Open http://localhost:8000. The guided tour starts by itself. To open one chapte
 - `world.js`: the scene (cluster, sandbox Pod, control plane, internet, private network, pipes)
 - `openclaw.js`: the OpenClaw lobster mascot
 - `app.js`: the simulation (packets, policy evaluation, chapters, panels, tour, audit trail)
+- `og.jpg`: the 1200×630 link preview image
 
 ## Accuracy
 

@@ -961,15 +961,16 @@ export const PROV = {
   openrouter: {host: 'OpenRouter', pos: V(27.6, 0, -18.2), h: 4.6, color: '#9fb0ff', note: 'model provider'},
 };
 {
-  const ground = new THREE.Mesh(new THREE.CircleGeometry(11, 64), new THREE.ShaderMaterial({
+  // The disc covers every outside tower: egress destinations, model providers and SaaS MCP servers.
+  const ground = new THREE.Mesh(new THREE.CircleGeometry(16.5, 72), new THREE.ShaderMaterial({
     transparent: true, depthWrite: false, uniforms: {uT: time},
     vertexShader: `varying vec2 vU; void main(){ vU = uv; gl_Position = projectionMatrix*modelViewMatrix*vec4(position,1.); }`,
     fragmentShader: `uniform float uT; varying vec2 vU; void main(){ float r = length(vU-.5)*2.; float ring = smoothstep(.02,0.,abs(fract(r*4.-uT*.12)-.5)-.47); float a = (1.-r)*.12 + ring*(1.-r)*.25; gl_FragColor = vec4(vec3(.4,.6,1.)*1.2, a); }`,
   }));
   ground.rotation.x = -Math.PI / 2;
-  ground.position.set(NET_C.x, GROUND + 0.03, NET_C.z);
+  ground.position.set(27.2, GROUND + 0.03, -5.4);
   scene.add(ground);
-  label('the internet', {kicker: 'and SaaS APIs', color: C.white, at: V(31.5, 0, 9.8)});
+  label('the internet', {kicker: 'SaaS · model providers · MCP servers', color: C.white, at: V(32.4, 0, 10.2)});
 }
 function winTex(color) {
   return canvasTex(128, 256, (g, w, h) => {
