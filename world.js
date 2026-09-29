@@ -878,19 +878,31 @@ export const firewall = new THREE.Group();
     text: 'A customer or production environment behind a firewall: a Kubernetes cluster and internal services. Nothing here accepts connections from the internet.'});
   label('prod · behind a firewall', {kicker: 'your private network', color: C.ice, at: V(PRIV.x - 5.6, 0.2, PRIV.z + 3.9), part: 'priv'});
 
-  // the firewall: a brick wall on the edge that faces the platform
+  // the firewall: a low wall all around the network, with one outbound opening on the side that faces the platform
+  const GAP = {x: PRIV.x + 1.6, z: PRIV.z + 3.75, w: 1.5};
+  firewall.position.set(GAP.x, 0, GAP.z);
   const bm = std('#3a2020', {emissive: new THREE.Color('#ff6b76'), emissiveIntensity: 0.12, roughness: 0.8});
-  for (let r = 0; r < 5; r++) for (let c = 0; c < 9; c++) {
-    const b = new THREE.Mesh(new RoundedBoxGeometry(0.4, 0.5, 0.9, 1, 0.04), bm);
-    b.position.set(0, 0.3 + r * 0.54, -3.6 + c * 0.9 + (r % 2 ? 0.45 : 0));
-    if (b.position.z > 3.9) continue;
-    b.castShadow = true;
-    firewall.add(b);
-  }
-  firewall.position.set(PRIV.x + 7.3, 0, PRIV.z);
+  const brick = new RoundedBoxGeometry(0.86, 0.34, 0.3, 1, 0.04);
+  const wall = (x0, z0, x1, z1) => {
+    const len = Math.hypot(x1 - x0, z1 - z0), ux = (x1 - x0) / len, uz = (z1 - z0) / len;
+    for (let r = 0; r < 3; r++) for (let t = (r % 2) * 0.45 + 0.45; t < len - 0.3; t += 0.9) {
+      const x = x0 + ux * t, z = z0 + uz * t;
+      if (Math.abs(z - GAP.z) < 0.01 && Math.abs(x - GAP.x) < GAP.w / 2 + 0.43) continue;
+      const m = new THREE.Mesh(brick, bm);
+      m.position.set(x - GAP.x, 0.25 + r * 0.37, z - GAP.z);
+      m.rotation.y = -Math.atan2(uz, ux);
+      m.castShadow = true;
+      firewall.add(m);
+    }
+  };
+  const X0 = PRIV.x - 6.75, X1 = PRIV.x + 6.75, Z0 = PRIV.z - 3.75, Z1 = PRIV.z + 3.75;
+  wall(X0, Z0, X1, Z0); wall(X1, Z0, X1, Z1); wall(X1, Z1, X0, Z1); wall(X0, Z1, X0, Z0);
+  const door = new THREE.Mesh(new THREE.TorusGeometry(0.62, 0.05, 8, 32, Math.PI), glow(C.cyan, 2.2));
+  door.position.set(0, 0.12, 0);
+  firewall.add(door);
   scene.add(firewall);
-  part('firewall', firewall, {title: 'The firewall', kicker: 'inbound: closed', color: C.red, chapter: 'mcp',
-    text: 'No inbound ports, no VPN. The relay inside dials out through it, so the platform can reach this network without anyone opening a hole.'});
+  part('firewall', firewall, {title: 'The firewall', kicker: 'inbound: closed · outbound: allowed', color: C.red, chapter: 'mcp',
+    text: 'It surrounds the whole network. No inbound ports, no VPN. The one thing that crosses it is a normal outbound HTTPS connection the relay opens, and the platform sends its requests back down that connection.'});
 
   privApi.position.set(PRIV.x - 3.2, 0, PRIV.z - 1.2);
   const ab = new THREE.Mesh(new RoundedBoxGeometry(1.8, 1.3, 1.8, 3, 0.14), std('#172036', {metalness: 0.55}));
@@ -912,7 +924,7 @@ export const firewall = new THREE.Group();
     text: 'An MCP server that only exists inside the private network. It is attached as an upstream with a cluster set, so the gateway reaches it through that cluster’s relay tunnel.'});
   label('incidents.internal', {kicker: 'MCP upstream · via tunnel', color: C.ice, cls: 'sm mono', at: V(0, 1.5, 0), parent: privSvc, part: 'privsvc'});
 
-  relay.position.set(PRIV.x + 3.2, 0, PRIV.z + 0.4);
+  relay.position.set(PRIV.x + 2.6, 0, PRIV.z + 1.2);
   const rb = new THREE.Mesh(new RoundedBoxGeometry(1.5, 1.8, 1.5, 3, 0.14), std('#161d2c', {metalness: 0.6}));
   rb.position.y = 0.9; rb.castShadow = true;
   const rl = new THREE.Mesh(new THREE.BoxGeometry(1.54, 0.06, 1.54), glow(C.cyan, 1.8));
@@ -1050,7 +1062,7 @@ for (const [k, d] of Object.entries(MCPUP)) {
   pipe('mcp-' + k, [gwTop, V(-22, 19, -4), V(6, 20, -13), V(d.pos.x - 1.2, d.h + 1.2, d.pos.z + 0.6), d.port.clone().add(V(0, 1.0, 0.4))], C.amber, {r: 0.07, base: 0.1});
 }
 // relay tunnel: dialed out from the private network, through the firewall, to the platform
-pipe('tunnel', [at(relay, 0.2, 2.0, 0.8), V(PRIV.x + 7.3, 2.6, PRIV.z + 1.2), V(-24, 5, -14), at(nexus, -0.5, 4.8, -1.6)], C.cyan, {r: 0.08});
+pipe('tunnel', [at(relay, -0.2, 1.4, 0.8), V(PRIV.x + 1.6, 0.75, PRIV.z + 3.75), V(PRIV.x - 1.5, 1.8, PRIV.z + 7), V(-25, 4.4, -11), at(nexus, -0.5, 4.8, -1.6)], C.cyan, {r: 0.08});
 pipe('relay-api', [at(relay, -0.8, 1.1, 0), at(privApi, 0.95, 0.8, 0.2)], C.kube, {r: 0.05});
 pipe('relay-svc', [at(relay, -0.8, 0.8, 0.5), at(privSvc, 0.75, 0.6, 0)], C.ice, {r: 0.05});
 

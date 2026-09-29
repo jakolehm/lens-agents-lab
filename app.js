@@ -3,7 +3,7 @@ import {
   parts, pickables, allLabels, label, vm, vmInner, shell, shellMat, shellEdges, layers, core, lobster, ring, procs, gate,
   gateCtl, GATE, NIC, nic, UPLINK, uplink, PVSOCK, pvSock, plates, SURF, VM, NODE_TOP, nodes, miniPods, apiserver, pv, pvFill,
   egress, nexus, mods, pg, admin, adminScreen, cli, setCliScreen, desktop, browser, setBrowser, relay, privApi, privSvc, firewall,
-  PRIV, CP, DEST, PROV, MCPUP, NET_C, pipes, glow, vmLight, coreLight, cpGroup, clusterGroup, CLUSTER,
+  PRIV, privGroup, CP, DEST, PROV, MCPUP, NET_C, pipes, glow, vmLight, coreLight, cpGroup, clusterGroup, CLUSTER,
 } from './world.js?v=1';
 
 // ─────────────────────────────────────────────────────────────── small helpers
@@ -943,7 +943,7 @@ async function addUpstream(k) {
   if (S.ups[k] !== 'none') return;
   const u = UPSTREAMS[k];
   const route = k === 'atlassian' ? 'admin' : 'cli';
-  stage([route === 'admin' ? admin : cli, nexus, mods.mcpgw], 5);
+  stage([route === 'admin' ? admin : cli, nexus, mods.mcpgw], 8);
   if (k === 'atlassian') term('mcp', `<span class="cm"># Admin UI → MCP Gateway → Add MCP Upstream</span>\nname atlassian · Streamable HTTP · ${u.url}\ncredential atlassian-oauth · OAuth (Login) · Cluster: Direct (no tunnel)`);
   else term('mcp', `<span class="pr">$</span> nexusctl connector create --project acme --name incidents \\\n    --display-name Incidents --url ${u.url} --cluster prod`);
   const p = new Packet(C.cyan, `POST /mcp-servers · ${k}`, 0.8).at(pipes[route].curve.getPointAt(0));
@@ -967,20 +967,21 @@ async function addUpstream(k) {
 }
 async function authorizeUpstream(k = 'atlassian') {
   if (S.ups[k] !== 'pending') return;
-  stage([admin, nexus, mods.mcpgw], 5);
+  stage([admin, nexus, mods.mcpgw], 8);
   const p = new Packet(C.cyan, 'Authorize · oauth/start', 0.8).at(pipes.admin.curve.getPointAt(0));
   await p.pipe('admin', 0.8);
   fx(top(nexus, 7.4), 'discovery · PKCE · dynamic client registration', C.cyan);
   log('rest-api', `<b>POST</b> …/mcp-servers/atlassian/credentials/atlassian-oauth/oauth/start <u>· authorizeUrl</u>`);
   await p.pipe('mcp-in', 0.5, true);
   p.color(C.amber).text('popup · sign in at Atlassian');
+  stage([mods.mcpgw, MCPUP.atlassian.group], 8);
   await p.pipe('mcp-atlassian', 1.6);
   burst(p.pos.clone(), C.amber, 0.8);
   fx(p.pos.clone().add(V(0, 1.2, 0)), 'you consent in the popup', C.amber);
   await sleep(0.5);
   p.text('code → /v1/mcp-servers/oauth/callback');
   await p.pipe('mcp-atlassian', 1.4, true);
-  stage([mods.vault, nexus, mods.mcpgw], 4);
+  stage([mods.vault, nexus, mods.mcpgw], 7);
   p.color(C.gold).text('tokens · encrypted on your grant');
   await p.pipe('mcp-in', 0.5);
   await p.pipe('vault', 0.5, true);
@@ -1248,7 +1249,7 @@ const PANELS = {
 
 // ─────────────────────────────────────────────────────────────── chapters
 const CH = [
-  {id: 'overview', title: 'The whole platform', color: C.cyan, cam: [V(-2, 34, 78), V(-2, 3, -3)],
+  {id: 'overview', title: 'The whole platform', color: C.cyan, cam: [V(-2, 66, 64), V(-2, 3, -3)],
     labels: ['cp', 'cluster', 'shell', 'workload', 'gate', 'nexus', 'browser', 'desktop', 'priv'],
     lede: 'Lens Agents runs AI agents on <b>your own infrastructure</b>. Each agent gets a sandbox that sees only what its policy allows, holds no real secrets, and leaves an audit record for everything it does.',
     body: `<p><b>Left</b>, the <b class="c-cy">control plane</b>: the platform server, its database and the Admin UI. <b>Middle</b>, a <b style="color:${C.kube}">Kubernetes cluster</b>. Every Pod on it is a sandbox, booted as its own <b>Kata microVM</b>. One Pod is opened up, with <b style="color:${C.claw}">OpenClaw</b> inside and the <b class="c-cy">boundary proxy</b> on its wall. <b>Right</b>, the internet and the model providers. <b>Back</b>, a private network behind a firewall.</p>
@@ -1446,7 +1447,9 @@ CH.forEach((c, i) => {
   steps.appendChild(b);
 });
 let camTween = null;
-const SCENE_PTS = [-36, 34].flatMap(x => [-0.5, 9].flatMap(y => [-30, 17].map(z => V(x, y, z))));
+const corners = box => [box.min.x, box.max.x].flatMap(x => [box.min.y, box.max.y].flatMap(y => [box.min.z, box.max.z].map(z => V(x, y, z))));
+const scenePts = () => [cpGroup, clusterGroup, privGroup, desktop, cli, browser, admin, ...[DEST, PROV, MCPUP].flatMap(o => Object.values(o).map(d => d.group))]
+  .flatMap(o => corners(new THREE.Box3().setFromObject(o)));
 const VMBOX = [V(-VM.w / 2, VM.floor, -VM.d / 2), V(VM.w / 2, VM.top, VM.d / 2)];
 const CHAPTER_FIT = {
   boot: () => [cli, nexus, apiserver, pv, ...VMBOX],
@@ -1462,7 +1465,7 @@ function camFor(c) {
   const [p, t] = c.cam;
   const k = clamp(0.84 / camera.aspect, 1, 2.1);
   const dir = p.clone().sub(t);
-  const pts = c.id === 'overview' ? SCENE_PTS : CHAPTER_FIT[c.id]?.().map(wp);
+  const pts = c.id === 'overview' ? scenePts() : CHAPTER_FIT[c.id]?.().map(wp);
   if (pts) {
     const box = new THREE.Box3().setFromPoints(pts);
     const ctr = box.getCenter(new THREE.Vector3());
@@ -1478,12 +1481,12 @@ function camFor(c) {
 const probe = new THREE.PerspectiveCamera();
 function frameAll(pts, dir, ctr) {
   const wide = innerWidth >= 900 && !touring;
-  const free = {x0: wide ? 780 / innerWidth - 1 : -0.94, x1: wide ? 1 - 820 / innerWidth : 0.94, y0: -0.78, y1: 0.72};
+  const free = {x0: wide ? 800 / innerWidth - 1 : -0.94, x1: 0.93, y0: -0.8, y1: 0.62};
   probe.fov = camera.fov; probe.aspect = camera.aspect; probe.near = camera.near; probe.far = camera.far;
   probe.updateProjectionMatrix();
-  const extent = d => {
-    probe.position.copy(ctr).addScaledVector(dir, d);
-    probe.lookAt(ctr);
+  const extent = (tgt, d) => {
+    probe.position.copy(tgt).addScaledVector(dir, d);
+    probe.lookAt(tgt);
     probe.updateMatrixWorld();
     const e = {x0: Infinity, x1: -Infinity, y0: Infinity, y1: -Infinity};
     for (const p of pts) {
@@ -1493,16 +1496,21 @@ function frameAll(pts, dir, ctr) {
     return e;
   };
   const fits = e => e.x1 - e.x0 <= free.x1 - free.x0 && e.y1 - e.y0 <= free.y1 - free.y0;
-  let lo = 10, hi = camera.far * 0.6;
-  for (let i = 0; i < 24; i++) { const mid = (lo + hi) / 2; fits(extent(mid)) ? hi = mid : lo = mid; }
-  const e = extent(hi);
-  const halfH = Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2) * hi, halfW = halfH * camera.aspect;
-  const right = new THREE.Vector3().setFromMatrixColumn(probe.matrixWorld, 0);
-  const up = new THREE.Vector3().setFromMatrixColumn(probe.matrixWorld, 1);
-  const shift = right.multiplyScalar(((e.x0 + e.x1) - (free.x0 + free.x1)) / 2 * halfW)
-    .add(up.multiplyScalar(((e.y0 + e.y1) - (free.y0 + free.y1)) / 2 * halfH));
-  const tgt = ctr.clone().add(shift);
-  return [tgt.clone().addScaledVector(dir, hi), tgt];
+  // Perspective makes each shift a little off, so fit and shift a few times.
+  const tgt = ctr.clone();
+  let d = 0;
+  for (let pass = 0; pass < 4; pass++) {
+    let lo = 10, hi = camera.far * 0.6;
+    for (let i = 0; i < 24; i++) { const mid = (lo + hi) / 2; fits(extent(tgt, mid)) ? hi = mid : lo = mid; }
+    d = hi;
+    const e = extent(tgt, d);
+    const halfH = Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2) * d, halfW = halfH * camera.aspect;
+    const right = new THREE.Vector3().setFromMatrixColumn(probe.matrixWorld, 0);
+    const up = new THREE.Vector3().setFromMatrixColumn(probe.matrixWorld, 1);
+    tgt.addScaledVector(right, ((e.x0 + e.x1) - (free.x0 + free.x1)) / 2 * halfW)
+      .addScaledVector(up, ((e.y0 + e.y1) - (free.y0 + free.y1)) / 2 * halfH);
+  }
+  return [tgt.clone().addScaledVector(dir, d), tgt];
 }
 function flyTo(pos, tgt, dur = 1.7) {
   const p0 = camera.position.clone(), t0 = controls.target.clone();
