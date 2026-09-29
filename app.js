@@ -1482,7 +1482,7 @@ let camTween = null;
 const corners = box => [box.min.x, box.max.x].flatMap(x => [box.min.y, box.max.y].flatMap(y => [box.min.z, box.max.z].map(z => V(x, y, z))));
 const scenePts = () => [cpGroup, clusterGroup, privGroup, desktop, cli, browser, admin, ...[DEST, PROV, MCPUP].flatMap(o => Object.values(o).map(d => d.group))]
   .flatMap(o => corners(new THREE.Box3().setFromObject(o)));
-const VMBOX = [V(-VM.w / 2, VM.floor, -VM.d / 2), V(VM.w / 2, VM.top, VM.d / 2)];
+const VMBOX = corners(new THREE.Box3(V(-VM.w / 2, VM.floor, -VM.d / 2), V(VM.w / 2, VM.top, VM.d / 2)));
 const CHAPTER_FIT = {
   boot: () => [cli, nexus, apiserver, pv, ...VMBOX],
   ingress: () => [browser, mods.ingress, nexus, ...VMBOX],
@@ -1497,12 +1497,12 @@ function camFor(c) {
   const [p, t] = c.cam;
   const pts = c.id === 'overview' ? scenePts() : ptsOf(CHAPTER_FIT[c.id]());
   const ctr = new THREE.Box3().setFromPoints(pts).getCenter(new THREE.Vector3());
-  return frameAll(pts, p.clone().sub(t).normalize(), ctr, {panel: c.id !== 'overview'});
+  return frameAll(pts, p.clone().sub(t).normalize(), ctr, c.id === 'overview' ? {} : {panel: true, fill: 0.85});
 }
 // Nearest camera distance at which every point projects into the screen area the cards leave free,
 // then a sideways shift that centres the points in that area.
 const probe = new THREE.PerspectiveCamera();
-function frameAll(pts, dir, ctr, {panel = false} = {}) {
+function frameAll(pts, dir, ctr, {panel = false, fill = 0.95} = {}) {
   const wide = innerWidth >= 900 && !touring;
   const free = {x0: wide ? 800 / innerWidth - 1 : -0.94, x1: wide && panel ? 1 - 800 / innerWidth : 0.93, y0: -0.8, y1: 0.62};
   probe.fov = camera.fov; probe.aspect = camera.aspect; probe.near = camera.near; probe.far = camera.far;
@@ -1514,11 +1514,12 @@ function frameAll(pts, dir, ctr, {panel = false} = {}) {
     const e = {x0: Infinity, x1: -Infinity, y0: Infinity, y1: -Infinity};
     for (const p of pts) {
       const v = p.clone().project(probe);
+      if (v.z < -1 || v.z > 1) return {x0: -Infinity, x1: Infinity, y0: -Infinity, y1: Infinity};
       e.x0 = Math.min(e.x0, v.x); e.x1 = Math.max(e.x1, v.x); e.y0 = Math.min(e.y0, v.y); e.y1 = Math.max(e.y1, v.y);
     }
     return e;
   };
-  const fits = e => e.x1 - e.x0 <= free.x1 - free.x0 && e.y1 - e.y0 <= free.y1 - free.y0;
+  const fits = e => e.x1 - e.x0 <= (free.x1 - free.x0) * fill && e.y1 - e.y0 <= (free.y1 - free.y0) * fill;
   // Perspective makes each shift a little off, so fit and shift a few times.
   const tgt = ctr.clone();
   let d = 0;
@@ -1566,7 +1567,7 @@ function stage(pts, minR = 2.6) {
   const k = minR * 0.7;
   P.push(...[V(k, 0, 0), V(-k, 0, 0), V(0, k, 0), V(0, -k, 0), V(0, 0, k), V(0, 0, -k)].map(o => o.add(c)));
   const [cp, ct] = camFor(current);
-  flyTo(...frameAll(P, cp.clone().sub(ct).normalize(), c, {panel: true}), 1.1);
+  flyTo(...frameAll(P, cp.clone().sub(ct).normalize(), c, {panel: true, fill: 0.65}), 1.1);
 }
 const VMFOCUS = () => [core.position.clone().add(V(-1.3, 1.4, 0.6)), GATE.clone().add(V(0, 3.6, 0)), NIC.clone().add(V(0.6, -1.2, 0)), UPLINK.clone()];
 let labelsOn = true;
