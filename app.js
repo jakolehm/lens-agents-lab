@@ -1446,6 +1446,7 @@ function beaconColor(d, k) {
   return col(VCOL[v.verdict], 2.4 + (d.flash || 0) * 3);
 }
 function refreshWorld() {
+  pipes.upstream.g.visible = S.rules.some(r => r.on && r.transport === 'upstream');
   for (const d of Object.values(DEST)) {
     const v = evaluate(d.host);
     d.beacon.material.color.copy(beaconColor(d));
@@ -1486,7 +1487,7 @@ const VMBOX = corners(new THREE.Box3(V(-VM.w / 2, VM.floor, -VM.d / 2), V(VM.w /
 const CHAPTER_FIT = {
   boot: () => [cli, nexus, apiserver, pv, ...VMBOX],
   ingress: () => [browser, mods.ingress, nexus, ...VMBOX],
-  network: () => [...VMBOX, egress, mods.fwdproxy, ...Object.values(DEST).map(d => d.group)],
+  network: () => [...VMBOX, egress, ...Object.values(DEST).map(d => d.group)],
   policy: () => [admin, pg, nexus, ...VMBOX],
   credentials: () => [mods.vault, nexus, ...VMBOX, DEST.slack.group],
   inference: () => [mods.llmproxy, ...VMBOX, ...Object.values(PROV).map(d => d.group), V(-4, 17, -12)],
@@ -1497,16 +1498,17 @@ function camFor(c) {
   const [p, t] = c.cam;
   const pts = c.id === 'overview' ? scenePts() : ptsOf(CHAPTER_FIT[c.id]());
   const ctr = new THREE.Box3().setFromPoints(pts).getCenter(new THREE.Vector3());
-  return frameAll(pts, p.clone().sub(t).normalize(), ctr, c.id === 'overview' ? {} : {panel: true, fill: 0.85});
+  return frameAll(pts, p.clone().sub(t).normalize(), ctr, c.id === 'overview' ? {fill: 0.88} : {panel: true, fill: 0.85});
 }
 // Nearest camera distance at which every point projects into the screen area the cards leave free,
 // then a sideways shift that centres the points in that area.
 const probe = new THREE.PerspectiveCamera();
 function frameAll(pts, dir, ctr, {panel = false, fill = 0.95} = {}) {
   const wide = innerWidth >= 900 && !touring;
-  const free = {x0: wide ? 800 / innerWidth - 1 : -0.94, x1: wide && panel ? 1 - 800 / innerWidth : 0.93, y0: -0.8, y1: 0.62};
+  const free = {x0: wide ? 800 / innerWidth - 1 : -0.94, x1: wide && panel ? 1 - 800 / innerWidth : 0.93, y0: touring ? -0.48 : -0.8, y1: 0.62};
   probe.fov = camera.fov; probe.aspect = camera.aspect; probe.near = camera.near; probe.far = camera.far;
-  probe.updateProjectionMatrix();
+  const v = camera.view;
+  v?.enabled ? probe.setViewOffset(v.fullWidth, v.fullHeight, v.offsetX, v.offsetY, v.width, v.height) : probe.clearViewOffset();
   const extent = (tgt, d) => {
     probe.position.copy(tgt).addScaledVector(dir, d);
     probe.lookAt(tgt);

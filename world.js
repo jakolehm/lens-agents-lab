@@ -267,7 +267,7 @@ function makeNode(key, x, z, w, d, name, focus = false) {
   label(name, {kicker: focus ? 'kubelet · kata-clh' : 'kubelet', color: C.kube, cls: 'sm', at: V(-w / 2 + 1.2, NODE_TOP + 0.1, d / 2), parent: g, part: 'node-' + key});
   return g;
 }
-makeNode('a', 0, 0, 11.4, 11.2, 'node-a', true);
+makeNode('a', 0, -1.2, 11.4, 13.6, 'node-a', true);
 makeNode('b', -9.2, -12.3, 9, 7, 'node-b');
 makeNode('c', 1.2, -12.3, 9, 7, 'node-c');
 makeNode('d', 11.2, -12.3, 6.6, 7, 'node-d');
@@ -275,7 +275,8 @@ makeNode('d', 11.2, -12.3, 6.6, 7, 'node-d');
 // Other sandboxes: small glass pods, each with a tiny workload inside.
 export const miniPods = [];
 {
-  const spots = [['b', -2.4, -1.2, C.claw], ['b', 0.4, -1.2, '#7aa2ff'], ['b', 2.8, 1.0, C.claw], ['b', -1.2, 1.6, '#c69cff'],
+  const spots = [['a', -3.0, -4.4, '#7aa2ff'], ['a', -0.2, -4.4, '#ffb454'], ['a', 2.6, -4.4, C.claw],
+    ['b', -2.4, -1.2, C.claw], ['b', 0.4, -1.2, '#7aa2ff'], ['b', 2.8, 1.0, C.claw], ['b', -1.2, 1.6, '#c69cff'],
     ['c', -2.6, 1.0, '#ffb454'], ['c', 0.2, -1.4, C.claw], ['c', 2.8, 0.6, '#7aa2ff'],
     ['d', -1.2, -1.0, '#c69cff'], ['d', 1.4, 1.2, C.claw]];
   spots.forEach(([n, x, z, c], i) => {
@@ -294,8 +295,10 @@ export const miniPods = [];
     g.userData = {mat: m, body: w, phase: i * 1.7};
     nodes[n].add(g);
     miniPods.push(g);
-    part('pod-' + i, g, {title: ['Another OpenClaw', 'A Hermes agent', 'A Prism agent', 'A CI agent'][i % 4], kicker: 'someone else’s sandbox', color: C.cyan, chapter: 'overview',
-      text: 'A separate sandbox in the same cluster, in its own Kata microVM, with its own policy, credentials and budget. It cannot reach this one: each Pod has its own kernel and its own nftables cage.'});
+    part('pod-' + i, g, {title: ['Another OpenClaw', 'A Hermes agent', 'A Prism agent', 'A CI agent'][i % 4], kicker: n === 'a' ? 'a neighbour on node-a' : 'someone else’s sandbox', color: C.cyan, chapter: 'overview',
+      text: n === 'a'
+        ? 'Another sandbox on the same node. A node runs many sandbox Pods, each sized by its own CPU and memory requests. They share the machine but not a kernel: each is its own Kata microVM with its own nftables cage.'
+        : 'A separate sandbox in the same cluster, in its own Kata microVM, with its own policy, credentials and budget. It cannot reach this one: each Pod has its own kernel and its own nftables cage.'});
   });
 }
 
