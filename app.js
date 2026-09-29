@@ -815,9 +815,23 @@ async function peekSupervisor() {
 
 // ─────────────────────────────────────────────────────────────── inference
 function ghop(i) { S.ghop = i; if (current.id === 'inference') refreshPanel(); }
+// rehydra swaps each detected value for a typed tag, keeps the map for this one call, and swaps back in the answer.
+const PII = {
+  prompt: 'reply to Dana Kim, dana@example.com, about card 4111 1111 1111 1111',
+  masked: 'reply to <PII type="PERSON" id="p1"/>, <PII type="EMAIL" id="e2"/>, about card <PII type="CREDIT_CARD" id="c3"/>',
+  answer: 'Hi <PII type="PERSON" id="p1"/>, the refund to your card is on its way.',
+  rehydrated: 'Hi Dana Kim, the refund to your card is on its way.',
+  raw: 'Hi Dana Kim, the refund to card 4111 1111 1111 1111 is on its way.',
+  byType: '{"PERSON":1,"EMAIL":1,"CREDIT_CARD":1}',
+};
+function togglePii() {
+  S.inf.pii = !S.inf.pii;
+  S.inf.lastPii = null;
+  return pushPolicy(S.inf.pii ? 'piiMasking: {types: [PERSON, EMAIL, CREDIT_CARD, …]}' : 'piiMasking removed');
+}
 async function askModel({prompt = 'summarise #incidents from today'} = {}) {
   if (S.vm !== 'started') return notRunning();
-  const pii = /@/.test(prompt);
+  const pii = prompt === PII.prompt;
   stage(VMFOCUS(), 4.6);
   const p = new Packet(C.cyan, 'POST /v1/messages').at(coreP.clone());
   lobster.turn(0.45).mood('think', 0).say(esc(prompt), {spin: true, dur: 90}).watch(p.g);
@@ -847,9 +861,17 @@ async function askModel({prompt = 'summarise #incidents from today'} = {}) {
     if (S.inf.used >= S.inf.limit) return deny(429, `sandbox budget: $${(S.inf.used / 100).toFixed(2)} of $${(S.inf.limit / 100).toFixed(2)} used`);
     ghop(4);
     if (S.inf.pii) {
-      p.text(pii ? 'masked: email [EMAIL_1] about the outage' : 'rehydra: nothing to mask');
-      fx(top(mods.llmproxy, 2.2), pii ? 'dana@example.com → [EMAIL_1]' : 'PII scan · clean', C.pink);
-      await sleep(0.6);
+      p.text(pii ? 'reply to <PERSON>, <EMAIL>, about card <CREDIT_CARD>' : 'rehydra: nothing to mask');
+      if (pii) {
+        ['Dana Kim → <PII type="PERSON"/>', 'dana@example.com → <PII type="EMAIL"/>', '4111 … 1111 → <PII type="CREDIT_CARD"/>']
+          .forEach((t, i) => setTimeout(() => fx(top(mods.llmproxy, 2.2 + i * 0.8), t, C.pink), i * 350));
+        burst(p.pos.clone(), C.pink, 1.0);
+        await sleep(1.4);
+      } else { fx(top(mods.llmproxy, 2.2), 'PII scan · clean', C.pink); await sleep(0.6); }
+    } else if (pii) {
+      p.color(C.red).text('no piiMasking · the raw text goes out');
+      fx(top(mods.llmproxy, 2.2), 'Dana Kim · dana@example.com · 4111 … leave the platform', C.red);
+      await sleep(1.0);
     }
     ghop(5);
     const pv = PROV[S.inf.provider];
@@ -859,13 +881,14 @@ async function askModel({prompt = 'summarise #incidents from today'} = {}) {
     burst(pv.beacon.getWorldPosition(V(0, 0, 0)), C.pink, 0.9);
     pv.flash = 1;
     const cost = 11;
-    p.color(C.green).text(`200 · ${pii ? 'Draft for [EMAIL_1]…' : 'Here is today’s summary…'}`);
+    p.color(C.green).text(`200 · ${pii ? (S.inf.pii ? 'Hi <PERSON>, the refund…' : 'Hi Dana Kim, the refund…') : 'Here is today’s summary…'}`);
     await sleep(0.2);
     await p.pipe('llm-' + S.inf.provider, 1.5, true);
     ghop(6);
     S.inf.used += cost;
-    if (pii && S.inf.pii) { p.text('unmasked → dana@example.com'); fx(top(mods.llmproxy, 2.2), '[EMAIL_1] → dana@example.com', C.pink); }
-    log('llm-proxy', `<b>POST</b> ${S.inf.provider}/model/invoke <u>· 200 · 2 104 in / 388 out · $0.${String(cost).padStart(2, '0')}${S.inf.pii ? ' · piiMasking' : ''}</u>`);
+    if (pii && S.inf.pii) { p.text('rehydrated → Hi Dana Kim, …'); fx(top(mods.llmproxy, 2.2), '<PII type="PERSON" id="p1"/> → Dana Kim', C.pink); }
+    if (pii) S.inf.lastPii = {masked: S.inf.pii};
+    log('llm-proxy', `<b>POST</b> ${S.inf.provider}/model/invoke <u>· 200 · 2 104 in / 388 out · $0.${String(cost).padStart(2, '0')}${S.inf.pii && pii ? ' · piiMasking ' + PII.byType : ''}</u>`);
     stage([mods.llmproxy, ...VMBOX], 6);
     await p.to(top(mods.fwdproxy, 1.0), 0.3);
     await backToPod(p);
@@ -1130,6 +1153,13 @@ const termBox = (ch, hint) => `<section class="card pane"><h3>Terminal <em>${hin
 const rowsOf = (list, on) => list.map(([t, s, c], i) => `<div class="row ${on === i ? 'on' : on > i ? 'done' : ''}" style="--c:${c}"><span class="ic">${i + 1}</span><span class="tx"><b>${t}</b><small>${s}</small></span></div>`).join('');
 
 let overviewTab = 'yaml', overviewOpen = false;
+function piiCard() {
+  const L = S.inf.lastPii;
+  const row = (who, text, c) => `<b>${who}</b><span style="color:${c}">${esc(text)}</span>`;
+  const body = !L ? '<p class="audit-empty">Ask with PII in the prompt to compare what each side sees.</p>'
+    : `<div class="kv">${row('OpenClaw sent', PII.prompt, '#c9d2e6')}${row('provider saw', L.masked ? PII.masked : PII.prompt, L.masked ? C.pink : C.red)}${row('provider said', L.masked ? PII.answer : PII.raw, L.masked ? C.pink : C.red)}${row('OpenClaw got', L.masked ? PII.rehydrated : PII.raw, '#c9d2e6')}${L.masked ? row('audit', 'byType ' + PII.byType + ' · values never stored', C.cyan) : ''}</div>`;
+  return `<section class="card pane"><h3>PII masking <em><button class="btn" data-pii="1" style="height:20px;padding:0 6px;font-size:10px">piiMasking: ${S.inf.pii ? 'on' : 'off'}</button></em></h3>${body}</section>`;
+}
 const PANELS = {
   overview() {
     if (!overviewOpen) return `<section class="card pane"><h3>The sandbox <em>one sandbox.yaml</em></h3><button class="btn" data-open="1" style="width:100%;justify-content:space-between">Show the document behind it <span class="k">sandbox.yaml ▸</span></button></section>`;
@@ -1225,7 +1255,8 @@ const PANELS = {
     return `<section class="card pane" style="flex:1"><h3>One model call <em>through the LLM proxy</em></h3><div class="scroll"><div class="rows">${rowsOf(gates, S.ghop)}</div></div></section>
       <section class="card pane"><h3>Sandbox budget <em>nexusctl sandbox spend</em></h3><div class="kv"><b>limit</b><span>$${(S.inf.limit / 100).toFixed(2)} / day</span><b>spent</b><span>$${(S.inf.used / 100).toFixed(2)}</span></div><div class="meter" style="--c:${pct >= 100 ? C.red : pct > 70 ? C.amber : C.green}"><i style="width:${pct}%"></i></div>
       <div style="margin-top:8px" class="seg">${['bedrock', 'openrouter'].map(p => `<button data-prov="${p}" class="${S.inf.provider === p ? 'on' : ''}">${p}</button>`).join('')}</div></section>
-      <section class="card pane"><h3>Seeded env <em>what OpenClaw is told</em></h3><div class="kv"><b>ANTHROPIC_BASE_URL</b><span>https://agents.example.com/v1/projects/acme/llm/${S.inf.provider}${S.inf.provider === 'openrouter' ? '/anthropic' : '/us-east-1'}</span><b>ANTHROPIC_AUTH_TOKEN</b><span>__lens_cred:nexus-llm-${S.inf.provider}__</span><b>ANTHROPIC_API_KEY</b><span>nexus-managed</span><b>LENS_MANAGED_INFERENCE_PROVIDER</b><span>${S.inf.provider}</span></div></section>${termBox('inference', 'OpenClaw')}`;
+      ${piiCard()}
+      <section class="card pane"${S.inf.lastPii ? ' hidden' : ''}><h3>Seeded env <em>what OpenClaw is told</em></h3><div class="kv"><b>ANTHROPIC_BASE_URL</b><span>https://agents.example.com/v1/projects/acme/llm/${S.inf.provider}${S.inf.provider === 'openrouter' ? '/anthropic' : '/us-east-1'}</span><b>ANTHROPIC_AUTH_TOKEN</b><span>__lens_cred:nexus-llm-${S.inf.provider}__</span><b>ANTHROPIC_API_KEY</b><span>nexus-managed</span><b>LENS_MANAGED_INFERENCE_PROVIDER</b><span>${S.inf.provider}</span></div></section>${termBox('inference', 'OpenClaw')}`;
   },
   mcp() {
     const pill = st => `<span class="pill" style="--c:${{ready: C.green, pending: C.amber, error: C.red, none: C.grey}[st]}">${st === 'pending' ? 'awaiting auth' : st === 'none' ? 'not added' : st}</span>`;
@@ -1331,11 +1362,11 @@ const CH = [
     labels: ['llmproxy', 'fwdproxy', 'prov-*', 'workload', 'pipe-https'],
     lede: 'OpenClaw thinks it talks to Anthropic. Its base URL is the platform’s <b>LLM proxy</b>, which checks the policy and the budget, masks PII, calls the provider with the platform’s own key, and <b>meters</b> every call.',
     body: `<p>The policy’s <code>managedInference</code> picks the backend, for example <b>bedrock</b> or <b>openrouter</b>. The sandbox gets <code>ANTHROPIC_BASE_URL</code> pointing at <code>/v1/projects/acme/llm/&lt;backend&gt;</code>, a placeholder bearer, and the inert key <code>nexus-managed</code>. No provider key ever enters the Pod.</p>
-      <p>The proxy refuses in order: org halted (<b class="c-rd">403</b>), not enabled by policy (<b class="c-rd">403</b>), over budget (<b class="c-rd">429</b> with <code>Retry-After</code>). <b>rehydra</b> masks names, emails and secrets before the request leaves, and unmasks the answer.</p>
+      <p>The proxy refuses in order: org halted (<b class="c-rd">403</b>), not enabled by policy (<b class="c-rd">403</b>), over budget (<b class="c-rd">429</b> with <code>Retry-After</code>). When the policy has <code>piiMasking</code>, <b>rehydra</b> swaps names, emails, card numbers and secrets for typed tags like <code>&lt;PII type="EMAIL" id="e2"/&gt;</code> before the request leaves, and swaps them back in the answer. The provider never sees the values, and the audit record keeps only counts by type. If masking fails, the call is refused, unless the policy sets <code>failOpen</code>.</p>
       <p>Budgets exist per org, project, user and sandbox. A sandbox token cannot raise its own. Calling the provider directly is simply not in the policy, so only the metered road is open.</p>`,
     acts: () => [
       ['ask the model', 'pri', () => askModel(), C.pink],
-      ['ask with an email in it', '', () => askModel({prompt: 'email dana@example.com about the outage'}), C.pink],
+      ['ask with PII in the prompt', '', () => askModel({prompt: PII.prompt}), C.pink],
       [S.inf.limit === 0 ? 'budget back to $5/day' : 'set the budget to $0', '', () => { S.inf.limit = S.inf.limit === 0 ? 500 : 0; if (S.inf.limit) S.inf.used = Math.min(S.inf.used, 100); log('rest-api', `<b>PUT</b> spending-limit sandbox ${SLUG} <u>· $${(S.inf.limit / 100).toFixed(2)}/day</u>`); refresh(); }, C.amber],
       [S.inf.enabled ? 'disable managedInference' : 'enable managedInference', '', () => { S.inf.enabled = !S.inf.enabled; pushPolicy(`managedInference.enabled: ${S.inf.enabled}`); }, C.red],
       ['call Bedrock directly', '', directProvider, C.red],
@@ -1391,6 +1422,7 @@ function refreshPanel() {
   rp.querySelectorAll('[data-ceil]').forEach(b => b.onclick = act(() => toggleCeiling(b.dataset.ceil)));
   rp.querySelectorAll('[data-tr]').forEach(b => b.onclick = act(() => setTransport(b.dataset.tr)));
   rp.querySelectorAll('[data-prov]').forEach(b => b.onclick = act(() => { S.inf.provider = b.dataset.prov; return pushPolicy(`managedInference.provider: ${S.inf.provider}`); }));
+  rp.querySelectorAll('[data-pii]').forEach(b => b.onclick = act(togglePii));
   rp.querySelectorAll('[data-tool]').forEach(b => b.onclick = () => toggleTool(b.dataset.tool));
   rp.querySelectorAll('[data-who]').forEach(b => b.onclick = () => { S.who = b.dataset.who; refreshPanel(); });
   rp.querySelectorAll('[data-src]').forEach(b => b.onclick = () => { auditFilter = b.dataset.src; refreshPanel(); });
@@ -1463,25 +1495,16 @@ const CHAPTER_FIT = {
 };
 function camFor(c) {
   const [p, t] = c.cam;
-  const k = clamp(0.84 / camera.aspect, 1, 2.1);
-  const dir = p.clone().sub(t);
-  const pts = c.id === 'overview' ? scenePts() : CHAPTER_FIT[c.id]?.().map(wp);
-  if (pts) {
-    const box = new THREE.Box3().setFromPoints(pts);
-    const ctr = box.getCenter(new THREE.Vector3());
-    if (c.id === 'overview') return frameAll(pts, dir.normalize(), ctr);
-    const r = box.getSize(new THREE.Vector3()).length() / 2 * 0.66;
-    const d = Math.max(dir.length() * k * 0.6, fitDist(r) * 1.02);
-    return [ctr.clone().add(dir.normalize().multiplyScalar(d)), ctr];
-  }
-  return [t.clone().add(dir.multiplyScalar(k)), t];
+  const pts = c.id === 'overview' ? scenePts() : ptsOf(CHAPTER_FIT[c.id]());
+  const ctr = new THREE.Box3().setFromPoints(pts).getCenter(new THREE.Vector3());
+  return frameAll(pts, p.clone().sub(t).normalize(), ctr, {panel: c.id !== 'overview'});
 }
 // Nearest camera distance at which every point projects into the screen area the cards leave free,
 // then a sideways shift that centres the points in that area.
 const probe = new THREE.PerspectiveCamera();
-function frameAll(pts, dir, ctr) {
+function frameAll(pts, dir, ctr, {panel = false} = {}) {
   const wide = innerWidth >= 900 && !touring;
-  const free = {x0: wide ? 800 / innerWidth - 1 : -0.94, x1: 0.93, y0: -0.8, y1: 0.62};
+  const free = {x0: wide ? 800 / innerWidth - 1 : -0.94, x1: wide && panel ? 1 - 800 / innerWidth : 0.93, y0: -0.8, y1: 0.62};
   probe.fov = camera.fov; probe.aspect = camera.aspect; probe.near = camera.near; probe.far = camera.far;
   probe.updateProjectionMatrix();
   const extent = (tgt, d) => {
@@ -1527,7 +1550,8 @@ controls.addEventListener('start', () => { camTween = null; });
 
 // Demo focus: while a demo runs, labels fade and the camera frames only the parts involved.
 let demoN = 0, demoT;
-const wp = p => p.isVector3 ? p.clone() : p.getWorldPosition(new THREE.Vector3());
+// Groups such as the control plane sit at the origin with children in world space, so frame what they contain.
+const ptsOf = list => list.flatMap(p => p.isVector3 ? [p.clone()] : corners(new THREE.Box3().setFromObject(p)));
 function beginDemo() { demoN++; clearTimeout(demoT); $('#labels').classList.add('demo'); }
 function endDemo() {
   demoN = Math.max(0, demoN - 1);
@@ -1535,21 +1559,14 @@ function endDemo() {
   clearTimeout(demoT);
   demoT = setTimeout(() => { if (demoN || touring) return; $('#labels').classList.remove('demo'); flyTo(...camFor(current), 1.4); }, 2200);
 }
-function fitDist(r) {
-  const narrow = innerWidth < 900, vf = THREE.MathUtils.degToRad(camera.fov) / 2;
-  const free = narrow || touring ? 0.92 : Math.max(0.35, (innerWidth - 780) / innerWidth);
-  const hf = Math.atan(Math.tan(vf) * camera.aspect * free);
-  const vfe = narrow ? Math.atan(Math.tan(vf) * 0.5) : Math.atan(Math.tan(vf) * 0.82);
-  return clamp(r / Math.tan(Math.min(hf, vfe)) * 1.08, 7, 140);
-}
 function stage(pts, minR = 2.6) {
   if (!demoN && !touring) return;
-  const box = new THREE.Box3().setFromPoints(pts.map(wp));
-  const c = box.getCenter(new THREE.Vector3());
-  const r = Math.max(minR, box.getSize(new THREE.Vector3()).length() / 2);
+  const P = ptsOf(pts);
+  const c = new THREE.Box3().setFromPoints(P).getCenter(new THREE.Vector3());
+  const k = minR * 0.7;
+  P.push(...[V(k, 0, 0), V(-k, 0, 0), V(0, k, 0), V(0, -k, 0), V(0, 0, k), V(0, 0, -k)].map(o => o.add(c)));
   const [cp, ct] = camFor(current);
-  const dir = cp.clone().sub(ct).normalize();
-  flyTo(c.clone().add(dir.multiplyScalar(fitDist(r))), c, 1.1);
+  flyTo(...frameAll(P, cp.clone().sub(ct).normalize(), c, {panel: true}), 1.1);
 }
 const VMFOCUS = () => [core.position.clone().add(V(-1.3, 1.4, 0.6)), GATE.clone().add(V(0, 3.6, 0)), NIC.clone().add(V(0.6, -1.2, 0)), UPLINK.clone()];
 let labelsOn = true;
@@ -1596,6 +1613,7 @@ const BOOT_TOUR = [
   ['Start', 'Finally [[OpenClaw|workload]] starts, as an ordinary user, and fetches a plugin through the gate.', () => [core, gate, egress], 3.5],
 ];
 const TOUR = [
+  {ch: 'overview', say: 'This is Lens Agents: a platform that runs AI agents on your own infrastructure, each one in its own governed sandbox.', hold: 5},
   {ch: 'overview', say: 'This is a Lens Agents installation. On the left is its [[control plane|cp]]: the brain that decides and records.', focus: () => [cpGroup], r: 9},
   {ch: 'overview', say: 'In the middle is [[your Kubernetes cluster|cluster]]. Every [[small glass box|pod-0]] on it is one agent’s sandbox.', focus: () => [clusterGroup], r: 12},
   {ch: 'overview', say: 'We open [[one sandbox|shell]]. Inside lives [[OpenClaw|workload]], an AI agent we want to keep contained.', focus: () => VMBOX, r: 5},
@@ -1921,7 +1939,7 @@ controls.target.set(0, 2, 0);
 const start = Math.max(0, CH.findIndex(c => '#' + c.id === location.hash));
 go(start);
 frame();
-window.__lab = {camera, controls, async advance(sec, step = 1 / 30) { for (let t = 0; t < sec; t += step) { tick(step); await new Promise(r => setTimeout(r, 0)); } render(); }, go, S, request, openUI, askModel, get current() { return current.id; }};
+window.__lab = {camera, controls, async advance(sec, step = 1 / 30) { for (let t = 0; t < sec; t += step) { tick(step); await new Promise(r => setTimeout(r, 0)); } render(); }, go, startTour, S, request, openUI, askModel, get current() { return current.id; }};
 const deepLink = location.hash && location.hash !== '#overview';
 requestAnimationFrame(() => setTimeout(() => {
   $('#loading').classList.add('done');
