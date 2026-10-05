@@ -30,7 +30,7 @@ Open http://localhost:8000. The guided tour starts by itself. To open one chapte
 
 ## Keys
 
-`1`–`9` open a chapter. `←` / `→` go to the previous or next chapter. `T` starts or stops the tour. `Space` pauses. `L` shows or hides labels. `M` toggles the tilt-shift effect. `/` hides the UI. `R` resets the camera. `?` opens help.
+`1`–`9` open a chapter. `←` / `→` go to the previous or next chapter. `T` starts or stops the tour. `V` turns the narrator on or off: the browser reads each tour caption aloud. `Space` pauses. `L` shows or hides labels. `M` toggles the tilt-shift effect. `/` hides the UI. `R` resets the camera. `?` opens help.
 
 ## Files
 

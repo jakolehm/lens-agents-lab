@@ -1714,6 +1714,42 @@ function updatePins(t) {
     }
   }
 }
+// ─────────────────────────────────────────────────────────────── narrator: the browser reads each caption aloud
+const plain = html => html.replace(/\[\[([^|\]]+)\|[^\]]+\]\]/g, '$1').replace(/<[^>]+>/g, '');
+const narrator = {
+  on: false, done: true, voice: null, utt: null, last: '',
+  pickVoice() {
+    const rank = v => { const r = [/Natural|Neural/i, /Google/i, /Samantha|Daniel|Karen|Moira|Serena/i].findIndex(re => re.test(v.name)); return r < 0 ? 9 : r; };
+    this.voice = speechSynthesis.getVoices().filter(v => /^en([-_]|$)/i.test(v.lang)).sort((a, b) => rank(a) - rank(b))[0] || null;
+  },
+  say(html) {
+    this.last = html;
+    if (!this.on) return;
+    speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(plain(html));
+    if (this.voice) u.voice = this.voice;
+    u.onend = u.onerror = () => { if (this.utt === u) this.done = true; };
+    this.utt = u;
+    this.done = false;
+    speechSynthesis.speak(u);
+  },
+  stop() { this.utt = null; this.done = true; if (window.speechSynthesis) speechSynthesis.cancel(); },
+  toggle() {
+    this.on = !this.on;
+    $('#voice').classList.toggle('on', this.on);
+    if (!this.on) return this.stop();
+    this.pickVoice();
+    if (touring) this.say(this.last);
+    else hint('Narrator on · press T for the tour');
+  },
+};
+if (window.speechSynthesis) speechSynthesis.onvoiceschanged = () => narrator.pickVoice();
+else $('#voice').hidden = true;
+function setPaused(p) {
+  paused = p;
+  $('#cap-pause').textContent = p ? 'Resume' : 'Pause';
+  if (window.speechSynthesis) p ? speechSynthesis.pause() : speechSynthesis.resume();
+}
 function caption(kicker, html, i, n) {
   const {out, refs} = parseRefs(html);
   $('#cap-k').textContent = kicker;
@@ -1725,8 +1761,9 @@ function caption(kicker, html, i, n) {
     r.onmouseenter = () => pins.filter(p => p.i === +r.dataset.i).forEach(p => p.el.classList.add('hot'));
     r.onmouseleave = () => pins.forEach(p => p.el.classList.remove('hot'));
   });
+  narrator.say(html);
 }
-const readTime = html => clamp(html.replace(/\[\[([^|\]]+)\|[^\]]+\]\]/g, '$1').replace(/<[^>]+>/g, '').split(/\s+/).length / 2.4 + 1, 4.5, 9);
+const readTime = html => clamp(plain(html).split(/\s+/).length / 2.4 + 1, 4.5, 9);
 async function hold(sec, id) {
   tourSkip = false;
   const bar = $('#cap-bar');
@@ -1735,6 +1772,7 @@ async function hold(sec, id) {
     bar.style.transform = `scaleX(${t / sec})`;
     await sleep(0.1);
   }
+  for (let w = 0; w < 15 && touring && id === tourId && !tourSkip && !narrator.done; w += 0.1) await sleep(0.1);
   bar.style.transform = 'scaleX(1)';
 }
 function frameOn(pts, minR) { const d = demoN; demoN = Math.max(demoN, 1); stage(pts, minR); demoN = d; }
@@ -1789,6 +1827,7 @@ addEventListener('resize', () => setTimeout(viewOffset, 0));
 function stopTour() {
   if (!touring) return;
   touring = false; tourId++;
+  narrator.stop();
   viewOffset();
   speed = 1;
   $('#app').classList.remove('touring');
@@ -1798,9 +1837,9 @@ function stopTour() {
   $('#labels').classList.remove('demo');
   flyTo(...camFor(current), 1.4);
 }
-$('#cap-next').onclick = () => { tourSkip = true; };
-$('#cap-pause').onclick = () => { paused = !paused; $('#cap-pause').textContent = paused ? 'Resume' : 'Pause'; };
-$('#cap-exit').onclick = () => { paused = false; $('#cap-pause').textContent = 'Pause'; stopTour(); };
+$('#cap-next').onclick = () => { tourSkip = true; narrator.stop(); };
+$('#cap-pause').onclick = () => setPaused(!paused);
+$('#cap-exit').onclick = () => { setPaused(false); stopTour(); };
 
 // ─────────────────────────────────────────────────────────────── hover, click
 const ray = new THREE.Raycaster();
@@ -1854,6 +1893,7 @@ $('#tour').onclick = () => touring ? stopTour() : startTour();
 $('#lbltog').onclick = () => { labelsOn = !labelsOn; $('#lbltog').classList.toggle('on', labelsOn); applyLabels(); };
 $('#tilt').onclick = () => { tiltH.enabled = tiltV.enabled = !tiltH.enabled; $('#tilt').classList.toggle('on', tiltH.enabled); hint(tiltH.enabled ? 'Miniature on: tilt-shift blur' : 'Miniature off'); };
 $('#uitog').onclick = () => { $('#app').classList.toggle('ui-off'); $('#uitog').classList.toggle('on'); flyTo(...camFor(current), 1.1); };
+$('#voice').onclick = () => narrator.toggle();
 $('#help').onclick = () => $('#info').showModal();
 $('#info-x').onclick = () => $('#info').close();
 $('#info').addEventListener('click', e => { if (e.target === $('#info')) $('#info').close(); });
@@ -1872,7 +1912,8 @@ addEventListener('keydown', e => {
   else if (k === '/') { e.preventDefault(); $('#uitog').click(); }
   else if (k === '?') $('#info').showModal();
   else if (k === 'r' || k === 'R') flyTo(...camFor(current), 1.1);
-  else if (k === ' ') { e.preventDefault(); paused = !paused; hint(paused ? 'Paused · Space to resume' : 'Resumed'); }
+  else if (k === ' ') { e.preventDefault(); setPaused(!paused); hint(paused ? 'Paused · Space to resume' : 'Resumed'); }
+  else if (k === 'v' || k === 'V') narrator.toggle();
 });
 
 // ─────────────────────────────────────────────────────────────── the loop

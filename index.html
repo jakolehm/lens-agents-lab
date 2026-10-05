@@ -345,6 +345,7 @@ dialog td:first-child{white-space:nowrap;color:#fff}
     <button class="icb" id="tilt" title="Miniature / tilt-shift (M)" aria-label="Tilt-shift"><svg viewBox="0 0 24 24"><path d="M2 7h20v2H2zm3 4h14v2H5zm-3 4h20v2H2z" opacity=".5"/><path d="M5 11h14v2H5z"/></svg></button>
     <button class="icb on" id="lbltog" title="Labels (L)" aria-label="Toggle labels"><svg viewBox="0 0 24 24"><path d="M3 5h12l6 7-6 7H3zm4 5a2 2 0 1 0 0 4 2 2 0 0 0 0-4z"/></svg></button>
     <button class="icb" id="uitog" title="Hide interface (/)" aria-label="Hide interface"><svg viewBox="0 0 24 24"><path d="M12 5C6 5 2 12 2 12s4 7 10 7 10-7 10-7-4-7-10-7zm0 11a4 4 0 1 1 0-8 4 4 0 0 1 0 8z"/></svg></button>
+    <button class="icb" id="voice" title="Narrator (V)" aria-label="Narrator"><svg viewBox="0 0 24 24"><path d="M3 9v6h4l5 5V4L7 9zm13.5 3a4.5 4.5 0 0 0-2.5-4v8a4.5 4.5 0 0 0 2.5-4zM14 3.2v2.1a7 7 0 0 1 0 13.4v2.1a9 9 0 0 0 0-17.6z"/></svg></button>
     <button class="icb" id="help" title="How to use (?)" aria-label="Help"><svg viewBox="0 0 24 24"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm1 15h-2v-2h2zm2.1-7.7-.9.9A3 3 0 0 0 13 13h-2v-.5a4 4 0 0 1 1.2-2.8l1.2-1.3A2 2 0 1 0 10 7H8a4 4 0 1 1 7.1 2.3z"/></svg></button>
   </div>
 
@@ -390,7 +391,7 @@ dialog td:first-child{white-space:nowrap;color:#fff}
       <tr><td>Right and back</td><td>The internet, the model providers, and a private network behind a firewall, reached through an outbound relay tunnel.</td></tr>
     </table>
     <h3>Controls</h3>
-    <p><kbd>1</kbd>…<kbd>9</kbd> jump to a chapter · <kbd>←</kbd> <kbd>→</kbd> previous / next · <kbd>T</kbd> start / stop the guided tour · <kbd>Esc</kbd> leave the tour · <kbd>L</kbd> labels · <kbd>M</kbd> miniature (tilt-shift) · <kbd>Space</kbd> pause · <kbd>R</kbd> reset the camera · <kbd>/</kbd> hide the interface · drag to orbit · right-drag to pan · scroll to zoom · hover anything for what it is · click a label to jump to its chapter.</p>
+    <p><kbd>1</kbd>…<kbd>9</kbd> jump to a chapter · <kbd>←</kbd> <kbd>→</kbd> previous / next · <kbd>T</kbd> start / stop the guided tour · <kbd>Esc</kbd> leave the tour · <kbd>L</kbd> labels · <kbd>M</kbd> miniature (tilt-shift) · <kbd>Space</kbd> pause · <kbd>V</kbd> narrator (reads the tour aloud) · <kbd>R</kbd> reset the camera · <kbd>/</kbd> hide the interface · drag to orbit · right-drag to pan · scroll to zoom · hover anything for what it is · click a label to jump to its chapter.</p>
     <h3>Accuracy</h3>
     <p>Names, fields, endpoints, env vars and error codes follow the Lens Agents source (<code>nexus-monorepo</code>) and the OpenClaw template in its Admin UI. The policy YAML uses the real schema. Timings are shortened, the pod’s outbound links are drawn on their own (they leave over eth0 like everything else), and the destinations are illustrative.</p>
     <p style="font-size:12px;color:#7d86a0">Built with three.js. Adapted from <a href="https://github.com/chenhunghan/lns-lab" target="_blank" rel="noopener">lns-lab</a>.</p>
